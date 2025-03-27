@@ -29,15 +29,15 @@ def main(args):
 
     # initialize the text tokenizer
     tokenizer = BertTokenizer.from_pretrained(model_name)
-    tokenized_text = tokenized(
+    tokenized_text = tokenizer(
         matched_df['story'].tolist(),
         padding="max_length",
         truncation=True,
         return_tensors="pt"
     )
 
-    matched_df["input_ids"] = tokenized_text["input_ids"].tolist()
-    matched_df["attention_mask"] = tokenized_text["attention_mask"].to(list)
+    matched_df["tokenized_input_ids"] = tokenized_text["input_ids"].tolist()
+    matched_df["tokenized_attention_mask"] = tokenized_text["attention_mask"].tolist()
 
 
     # initialize the MIDI tokenizer
@@ -65,6 +65,8 @@ def main(args):
     
     
     for epoch in range(num_epochs):
+        model.train()
+        total_loss = 0
         for idx, batch in enumerate(tqdm(dataloader)):
             input_ids, attention_mask, midi_output = batch
             
