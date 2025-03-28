@@ -49,3 +49,32 @@ class Story2MusicTransformer(nn.Module):
         
         output = self.output_layer(out)
         return output
+
+
+    def generate(self, input_ids, attention_mask, max_len, start_token_id, eos_token_id):
+        device = input_ids.device
+        with torch.no_grad():
+            memory = self.encoder(input_ids, attention_mask).last_hidden_state
+            memory = memory.permute(1, 0, 2)
+
+            start_token = start_token_id
+            generated = torch.tensor([[start_token]], dtype=torch.long, device=device)
+
+            for idx in range(max_len-1):
+                tgt_embedding = self.midi_embedding(generated)
+                tgt_embedding = self.positional_encoder(tgt_embedding)
+                tgt_embedding = tgt_embedding.permute(1, 0, 2)
+
+                decoder_output = self.decoder(tgt_embedding, memory, tgt_mask=None, memory_mask=None)
+                output_logits = self.output_layer(decoder_output[-1])
+                next_token = torch.argmax(output_logits, dim=-1).unsqueeze(0)
+
+                if next_token.item() == eos_token_id:
+                    break
+
+                generated = torch.cat((generated, next_token), dim=1)
+            
+
+        return generated
+                
+

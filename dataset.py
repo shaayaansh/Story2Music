@@ -12,7 +12,7 @@ class StoryMidiDataset(Dataset):
         self.df = dataframe
         self.midi_tokenizer = midi_tokenizer
         self.midi_paths = "EMOPIA_1.0/midis"
-        self.midi_max_length = 1024
+        self.midi_max_length = 512
         self.pad_token = self.midi_tokenizer["PAD_None"]
 
       def __len__(self):

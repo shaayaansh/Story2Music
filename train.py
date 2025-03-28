@@ -16,9 +16,9 @@ from torch.utils.data import DataLoader, Dataset
 def main(args):
     # hyper parameters TODO: READ FROM ARGS
     vocab_size_midi = 30000  
-    batch_size = 16
+    batch_size = 4
     model_name = "bert-base-uncased"
-    num_epochs = 20
+    num_epochs = 2
     lr = 1e-5
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
@@ -50,6 +50,8 @@ def main(args):
 
     config = TokenizerConfig(**tokenizer_params)
     midi_tokenizer = REMI(config)
+
+    pad_token_id = midi_tokenizer["PAD_None"]
     
     # convert dataframe to dataset object
     dataset = StoryMidiDataset(matched_df, midi_tokenizer)
@@ -59,7 +61,7 @@ def main(args):
     # instantiate the model & optimizer
     model = Story2MusicTransformer(model_name, vocab_size_midi)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_token_id)
     
     model.to(device)
     
@@ -81,6 +83,7 @@ def main(args):
             
             # Remove last token from target for input to decoder
             tgt_input = midi_output[:, :-1].to(device)
+
             # Target for loss should exclude first token (teacher forcing)
             tgt_target = midi_output[:, 1:].to(device)
             
@@ -90,8 +93,10 @@ def main(args):
             output = model(input_ids, attention_mask, tgt_input, tgt_mask)
             loss = criterion(output.reshape(-1, vocab_size_midi), tgt_target.reshape(-1))
             loss.backward()
+            
             optimizer.step()
             total_loss += loss.item()
+
     
     
         avg_loss = total_loss / len(dataloader)
