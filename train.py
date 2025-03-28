@@ -16,10 +16,10 @@ from torch.utils.data import DataLoader, Dataset
 def main(args):
     # hyper parameters TODO: READ FROM ARGS
     vocab_size_midi = 30000  
-    batch_size = 4
-    model_name = "bert-base-uncased"
-    num_epochs = 2
-    lr = 1e-5
+    batch_size = args.batch_size
+    model_name = args.model_name
+    num_epochs = args.num_epochs
+    lr = args.lr
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
     
@@ -117,6 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=16, help="batch size for training the model")
     parser.add_argument("--lr", type=float, default=1e-5, help="learning rate for training the model")
     parser.add_argument("--midi_vocab_size", type=int, default=30000, help="midi vocab size for midi tokenizer")
+    parser.add_argument("--num_epochs", type=int, default=20, help="number of epochs to train the model")
     
     args = parser.parse_args()
     main(args)
