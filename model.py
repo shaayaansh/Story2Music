@@ -51,7 +51,7 @@ class Story2MusicTransformer(nn.Module):
         return output
 
 
-    def generate(self, input_ids, attention_mask, max_len, start_token_id, eos_token_id):
+    def generate(self, input_ids, attention_mask, start_token_id, eos_token_id, max_len):
         device = input_ids.device
         with torch.no_grad():
             memory = self.encoder(input_ids, attention_mask).last_hidden_state
