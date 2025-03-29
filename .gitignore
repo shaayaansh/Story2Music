@@ -174,3 +174,9 @@ cython_debug/
 .pypirc
 
 .DS_Store
+
+# Things specific to this project
+
+EMOPIA*
+.python-version
+.gitignore
