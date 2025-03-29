@@ -2,7 +2,7 @@ First start by cloning this repository.
 
 In order to construct the midi dataset, download the EMOPIA dataset from here:
 ```
-wget --show-progress https://zenodo.org/records/5090631/files/EMOPIA_1.0.zip
+wget https://zenodo.org/records/5090631/files/EMOPIA_1.0.zip
 ```
 Then unzip the file:
 
