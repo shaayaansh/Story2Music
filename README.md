@@ -22,3 +22,14 @@ pip install -r requirements.txt
 Once you are set up and the data is downloaded, to train the model, run:
 
 ``` python train.py --model_name "bert-base-uncased" ```
+
+To play a midifile from command line:
+
+```
+python play_midi.py <path/to/midi/file.mid>
+```
+
+For example:
+```
+python play_midi.py EMOPIA_1.0/midis/Q1_0vLPYiPN7qY_0.mid
+```
