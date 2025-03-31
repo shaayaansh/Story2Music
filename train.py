@@ -11,9 +11,19 @@ from dataset import StoryMidiDataset
 from transformers import BertTokenizer
 from torch.utils.data import DataLoader, Dataset
 
-
+def ensure_saved_models_dir():
+    """
+    Check if saved_models directory exists, create it if it doesn't.
+    """
+    saved_models_dir = Path("saved_models")
+    if not saved_models_dir.exists():
+        saved_models_dir.mkdir(parents=True)
+        print("Created saved_models directory")
 
 def main(args):
+    # Ensure saved_models directory exists
+    ensure_saved_models_dir()
+    
     # hyper parameters TODO: READ FROM ARGS
     vocab_size_midi = 30000  
     batch_size = args.batch_size
