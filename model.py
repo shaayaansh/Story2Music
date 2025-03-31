@@ -51,30 +51,81 @@ class Story2MusicTransformer(nn.Module):
         return output
 
 
-    def generate(self, input_ids, attention_mask, start_token_id, eos_token_id, max_len):
+    def generate(self, input_ids,
+                 attention_mask,
+                 start_token_id,
+                 eos_token_id,
+                 max_len,
+                 decoding_strategy="none",
+                 beam_width=4
+                ):
+        
         device = input_ids.device
         with torch.no_grad():
             memory = self.encoder(input_ids, attention_mask).last_hidden_state
             memory = memory.permute(1, 0, 2)
 
             start_token = start_token_id
-            generated = torch.tensor([[start_token]], dtype=torch.long, device=device)
+            
+            if decoding_strategy == "beam_search":
+                generated = self.generate_beam_search(memory, start_token_id, eos_token_id, max_len, beam_width)
+                
+            else:
+                generated = torch.tensor([[start_token]], dtype=torch.long, device=device)
 
-            for idx in range(max_len-1):
-                tgt_embedding = self.midi_embedding(generated)
-                tgt_embedding = self.positional_encoder(tgt_embedding)
-                tgt_embedding = tgt_embedding.permute(1, 0, 2)
+                for idx in range(max_len-1):
+                    tgt_embedding = self.midi_embedding(generated)
+                    tgt_embedding = self.positional_encoder(tgt_embedding)
+                    tgt_embedding = tgt_embedding.permute(1, 0, 2)
 
-                decoder_output = self.decoder(tgt_embedding, memory, tgt_mask=None, memory_mask=None)
-                output_logits = self.output_layer(decoder_output[-1])
-                next_token = torch.argmax(output_logits, dim=-1).unsqueeze(0)
+                    decoder_output = self.decoder(tgt_embedding, memory, tgt_mask=None, memory_mask=None)
+                    output_logits = self.output_layer(decoder_output[-1])
+                    next_token = torch.argmax(output_logits, dim=-1).unsqueeze(0)
 
-                if next_token.item() == eos_token_id:
-                    break
+                    if next_token.item() == eos_token_id:
+                        break
 
-                generated = torch.cat((generated, next_token), dim=1)
+                    generated = torch.cat((generated, next_token), dim=1)
             
 
         return generated
+    
+    
+    def generate_beam_search(self, memory, start_token_id, eos_token_id, max_len=100, beam_width=3):
+        device = memory.device
+        with torch.no_grad():
+            beams = [(torch.tensor([start_token_id], device=device).unsqueeze(0), 0)]  # (tokens, score)
+            for _ in range(max_len - 1):
+                candidates = []
+                
+                for seq, score in beams:
+                    
+                    if seq[0, -1].item() == eos_token_id:
+                        candidates.append((seq, score))
+                        continue
+
+                    tgt_embedding = self.midi_embedding(seq)
+                    tgt_embedding = self.positional_encoder(tgt_embedding)
+                    tgt_embedding = tgt_embedding.permute(1, 0, 2)
+
+                    decoder_output = self.decoder(tgt_embedding, memory)
+                    output_logits = self.output_layer(decoder_output[-1])  # (batch, vocab)
+                    log_probs = torch.log_softmax(output_logits, dim=-1)  # convert to log-probs
+                    topk_log_probs, topk_indices = torch.topk(log_probs, beam_width, dim=-1)
+
+                    for k in range(beam_width):
+                        next_token = topk_indices[0, k].unsqueeze(0).unsqueeze(0)  # shape (1, 1)
+                        new_seq = torch.cat([seq, next_token], dim=1)
+                        new_score = score + topk_log_probs[0, k].item()
+                        candidates.append((new_seq, new_score))
+                    
+                beams = sorted(candidates, key=lambda x: x[1], reverse=True)[:beam_width]
+
+                # Early stopping if all beams end with eos
+                if all(seq[0, -1].item() == eos_token_id for seq, _ in beams):
+                    break
+
+            best_seq = beams[0][0]
+            return best_seq
                 
 

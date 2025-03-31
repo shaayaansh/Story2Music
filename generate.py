@@ -11,7 +11,8 @@ from torch.utils.data import DataLoader, Dataset
 
 # Load model
 model = Story2MusicTransformer("bert-base-uncased", midi_vocab_size=30000)
-model.load_state_dict(torch.load("saved_models/custom_transformer.pth"))
+#model.load_state_dict(torch.load("saved_models/custom_transformer.pth"))
+model.load_state_dict(torch.load("saved_models/bert-base-60-epochs.pth"))
 model.eval()
 
 tokenizer_params = {
@@ -34,5 +35,11 @@ attention_mask = inputs["attention_mask"]
 
 
 # Generate
+print("GENERATING USING BEAM SEARCH")
+generated = model.generate(input_ids, attention_mask, 4, 3, max_len=50, decoding_strategy="beam_search", beam_width=4)
+print("Generated MIDI:", generated.squeeze().tolist())
+
+
+print("GENERATING WITHOUT USING BEAM SEARCH")
 generated = model.generate(input_ids, attention_mask, 4, 3, max_len=50)
 print("Generated MIDI:", generated.squeeze().tolist())
