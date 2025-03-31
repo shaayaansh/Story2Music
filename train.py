@@ -10,6 +10,8 @@ from model import Story2MusicTransformer
 from dataset import StoryMidiDataset
 from transformers import BertTokenizer
 from torch.utils.data import DataLoader, Dataset
+import logging
+import json
 
 def ensure_saved_models_dir():
     """
@@ -32,7 +34,13 @@ def main(args):
     lr = args.lr
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
-    
+    logging.basicConfig(
+        filename='training_log.log',        
+        level=logging.INFO,                 
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+
     # read the training data
     matched_df = pd.read_csv("data/story_midi_matched.csv")
 
@@ -75,7 +83,7 @@ def main(args):
     
     model.to(device)
     
-    
+    logger.info("Training started")
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
@@ -111,11 +119,13 @@ def main(args):
     
         avg_loss = total_loss / len(dataloader)
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.4f}")
+        logger.info(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.4f}")
         
         
-        
+    logger.info("Training finished")   
     # === SAVE MODEL ===
     torch.save(model.state_dict(), "saved_models/custom_transformer.pth")
+    logger.info("Model saved")
     
     
 
