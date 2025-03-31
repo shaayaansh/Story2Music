@@ -83,7 +83,13 @@ def main(args):
     
     model.to(device)
     
+    logger.info("Training hyperparamteres: \n")
+    logger.info(f"Num_epochs: {num_epochs}")
+    logger.info(f"Learning rate: {lr}")
+    logger.info(f"Batch size: {batch_size}")
+    logger.info(f"Model name: {model_name}")
     logger.info("Training started")
+    
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
