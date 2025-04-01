@@ -21,7 +21,10 @@ pip install -r requirements.txt
 
 Once you are set up and the data is downloaded, to train the model, run:
 
-``` python train.py --model_name "bert-base-uncased" ```
+``` python train.py --model_name "bert-base-uncased" --batch_size 16 --num_epochs 100 ```
+
+To generate a midi file using the trained model, run:
+``` python generate.py ```
 
 To play a midifile from command line:
 
