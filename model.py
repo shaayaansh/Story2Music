@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel
 import math
+import torch.nn.functional as F
 
 
 class PositionalEncoding(nn.Module):
@@ -69,6 +70,15 @@ class Story2MusicTransformer(nn.Module):
             
             if decoding_strategy == "beam_search":
                 generated = self.generate_beam_search(memory, start_token_id, eos_token_id, max_len, beam_width)
+
+            elif decoding_strategy == "top_p":
+                generated = self.generate_top_p(
+                    memory,
+                    start_token_id,
+                    eos_token_id,
+                    max_len,
+                    top_p=0.8
+                )
                 
             else:
                 generated = torch.tensor([[start_token]], dtype=torch.long, device=device)
@@ -99,7 +109,7 @@ class Story2MusicTransformer(nn.Module):
                 candidates = []
                 
                 for seq, score in beams:
-                    
+                    # if there is a stop token, don't expand the beam
                     if seq[0, -1].item() == eos_token_id:
                         candidates.append((seq, score))
                         continue
@@ -127,5 +137,54 @@ class Story2MusicTransformer(nn.Module):
 
             best_seq = beams[0][0]
             return best_seq
-                
+
+
+    def generate_top_p(
+        self,
+        memory,
+        start_token_id,
+        eos_token_id,
+        max_len=100,
+        top_p = 0.8
+    ):
+        device = memory.device
+        with torch.no_grad():
+            generated = torch.tensor([start_token_id], dtype=torch.long, device=device)
+
+            for idx in range(max_len-1):
+                tgt_embedding = self.midi_embedding(generated)
+                tgt_embedding = tgt_embedding.unsqueeze(0) 
+                tgt_embedding = self.positional_encoder(tgt_embedding)
+                tgt_embedding = tgt_embedding.permute(1, 0, 2)
+
+                decoder_output = self.decoder(memory, tgt_embedding)
+                output_logits = self.output_layer(decoder_output[-1])
+                print(output_logits.shape)
+                next_token = self.top_p_sample(output_logits)
+
+                if next_token.item() == eos_token_id:
+                    break
+
+                generated = torch.cat((generated, next_token), dim=0)
+        
+        return generated
+
+
+    def top_p_sample(self, logits, p=0.8):
+        logits = logits.squeeze(0)
+        probs = torch.softmax(logits, dim=-1)
+        sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+        cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+
+        sample_indices = torch.where(cumulative_probs <= p)[0]
+
+        top_probs = sorted_probs[sample_indices]
+        top_indices = sorted_indices[sample_indices]
+
+        # re-normalize top-p probability
+        top_probs = top_probs / torch.sum(top_probs)
+
+        sampled_index = torch.multinomial(top_probs, num_samples=1)
+
+        return top_indices[sampled_index]
 

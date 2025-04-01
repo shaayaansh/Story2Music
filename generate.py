@@ -39,7 +39,10 @@ print("GENERATING USING BEAM SEARCH")
 generated = model.generate(input_ids, attention_mask, 4, 3, max_len=50, decoding_strategy="beam_search", beam_width=4)
 print("Generated MIDI:", generated.squeeze().tolist())
 
-
 print("GENERATING WITHOUT USING BEAM SEARCH")
 generated = model.generate(input_ids, attention_mask, 4, 3, max_len=50)
+print("Generated MIDI:", generated.squeeze().tolist())
+
+print("GENERATING USING TOP P SAMPLING")
+generated = model.generate(input_ids, attention_mask, 4, 3, max_len=50, decoding_strategy="top_p")
 print("Generated MIDI:", generated.squeeze().tolist())
