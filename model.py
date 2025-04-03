@@ -45,12 +45,27 @@ class Story2MusicTransformer(nn.Module):
             
         tgt = self.midi_embedding(tgt)
         tgt = self.positional_encoder(tgt) # add positional encodings
-        tgt = tgt.permute(1, 0, 2) 
-        out = self.decoder(tgt, memory, tgt_mask=tgt_mask, memory_mask=None)
+        tgt = tgt.permute(1, 0, 2) # (seq_len, batch_size, h_dim)
+        out = self.decoder(tgt, memory, tgt_mask=tgt_mask, memory_mask=None) # (seq_len, batch_size, h_dim)
         
-        output = self.output_layer(out)
+        output = self.output_layer(out.permute(1, 0, 2)) # (batch_size, seq_len, h_dim)
+        
         return output
-
+    
+        
+    def decoder_forward_only(self, tgt, tgt_mask):
+        """
+        this function is used for pre-training the decoder
+        we pass dummy tensors as the output of the encoder
+        """
+        tgt_emb = self.midi_embedding(tgt)
+        tgt_emb = self.positional_encoder(tgt_emb)
+        tgt_emb = tgt_emb.permute(1, 0, 2)
+        memory_dummy = torch.zeros((1, tgt_emb.size(1), 768), device=tgt.device)
+        out = self.decoder(tgt_emb, memory_dummy, tgt_mask=tgt_mask)
+        output = self.output_layer(out.permute(1, 0, 2))
+        
+        return output
 
     def generate(self, input_ids,
                  attention_mask,

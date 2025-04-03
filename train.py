@@ -115,6 +115,10 @@ def main(args):
             
             optimizer.zero_grad()
             output = model(input_ids, attention_mask, tgt_input, tgt_mask)
+            #output = model.decoder_forward_only(tgt_input, tgt_mask) # pretraining step
+            #print(f" IN TRAIN FILE, output shape: {output.shape}")
+            #print(f" IN TRAIN FILE, tgt_target shape: {tgt_target.shape}")
+            #ßprint(f" IN TRAIN FILE, tgt_target shape after reshape: {tgt_target.reshape(-1).shape}")
             loss = criterion(output.reshape(-1, vocab_size_midi), tgt_target.reshape(-1))
             loss.backward()
             
