@@ -27,7 +27,7 @@ def main(args):
     ensure_saved_models_dir()
     
     # hyper parameters TODO: READ FROM ARGS
-    vocab_size_midi = 30000  
+    vocab_size_midi = 281 # len(tokenizer.vocab)  
     batch_size = args.batch_size
     model_name = args.model_name
     num_epochs = args.num_epochs
