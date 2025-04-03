@@ -159,7 +159,6 @@ class Story2MusicTransformer(nn.Module):
 
                 decoder_output = self.decoder(memory, tgt_embedding)
                 output_logits = self.output_layer(decoder_output[-1])
-                print(output_logits.shape)
                 next_token = self.top_p_sample(output_logits)
 
                 if next_token.item() == eos_token_id:
@@ -170,7 +169,7 @@ class Story2MusicTransformer(nn.Module):
         return generated
 
 
-    def top_p_sample(self, logits, p=0.8):
+    def top_p_sample(self, logits, p=0.9):
         logits = logits.squeeze(0)
         probs = torch.softmax(logits, dim=-1)
         sorted_probs, sorted_indices = torch.sort(probs, descending=True)
