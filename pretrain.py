@@ -24,7 +24,7 @@ def main():
     )
     
     os.makedirs("pretrain_checkpoints", exist_ok=True)
-    
+
     midi_tokenizer = REMI()
     
     # load and split training data (only run it once for the first time)
@@ -55,12 +55,24 @@ def main():
     criterion = nn.CrossEntropyLoss(ignore_index=midi_tokenizer.pad_token_id)
     optimizer = optim.AdamW(model.parameters(), lr=1e-4)
     
-    
+    # ==== Resume checkpoint ====
+    checkpoint_path = "pretrain_checkpoints/decoder_epoch_4.pt"  # change if needed
+    start_epoch = 0
+
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.module.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        print(f"Loaded checkpoint from epoch {checkpoint['epoch']}")
+        logging.info(f"Resumed training from checkpoint: epoch {checkpoint['epoch']}")
+        
+        
     num_epochs = 20
-    save_every = 5
+    save_every = 2
 
     model.train()
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         total_loss = 0
         for _, batch in enumerate(tqdm(data_loader)):
             input_ids = batch['input_ids'].to(device)            # (batch_size, seq_len)
@@ -85,7 +97,7 @@ def main():
             total_loss += loss.item()
             
 
-        log_msg = f"Epoch {epoch+1} — Loss: {total_loss / len(dataloader):.4f}"
+        log_msg = f"Epoch {epoch+1} — Loss: {total_loss / len(data_loader):.4f}"
         print(log_msg) 
         logging.info(log_msg)
 
@@ -99,6 +111,8 @@ def main():
             }, checkpoint_path)
             print(f"Saved checkpoint: {checkpoint_path}")
 
+    
+    
     
     
     

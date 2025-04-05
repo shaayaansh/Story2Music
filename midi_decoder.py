@@ -30,9 +30,12 @@ class MidiDecoderOnlyModel(nn.Module):
         self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=6)
         self.output = nn.Linear(hidden_dim, vocab_size)
 
-    def forward(self, x, tgt_mask=None, tgt_key_padding_mask=None):
+    def forward(self, x, tgt_key_padding_mask=None):
         x = self.embedding(x)
         x = self.pos_encoder(x).permute(1, 0, 2)
+        
+        seq_len = x.size(0)
+        tgt_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool), diagonal=1)
         out = self.decoder(x, memory=torch.zeros_like(x),
                            tgt_mask=tgt_mask,
                            tgt_key_padding_mask=tgt_key_padding_mask
