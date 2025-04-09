@@ -28,12 +28,13 @@ def main():
 
     midi_tokenizer = REMI()
 
-    # download and split pretrain data
-    pretrain_file_id = "1BDEPaEWFEB2ADquS1VYp5iLZYVngw799"
-    url = f"https://drive.google.com/uc?id={pretrain_file_id}"
-    
-    load_pretrain_data(url, "midis.zip", "midis")
-    split_pretrain_data("midis", midi_tokenizer, 1024)
+    # download and split pretrain data only if the folder does not exist
+    if not os.path.exists("midis"):
+        pretrain_file_id = "1BDEPaEWFEB2ADquS1VYp5iLZYVngw799"
+        url = f"https://drive.google.com/uc?id={pretrain_file_id}"
+        
+        load_pretrain_data(url, "midis.zip", "midis")
+        split_pretrain_data("midis", midi_tokenizer, 1024)
         
     midi_paths = list(Path("pretrain_data/dataset_train").resolve().glob("**/*.mid"))
 
@@ -46,7 +47,7 @@ def main():
     )
     
     collator = DataCollator(midi_tokenizer.pad_token_id)
-    data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=8)
+    data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=16)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MidiDecoderOnlyModel(vocab_size=len(midi_tokenizer.vocab))
@@ -77,9 +78,13 @@ def main():
     save_every = 2
 
     model.train()
+    step = 0
+    log_interval = 500
     for epoch in range(start_epoch, num_epochs):
         total_loss = 0
         for _, batch in enumerate(tqdm(data_loader)):
+            step += 1
+
             input_ids = batch['input_ids'].to(device)            # (batch_size, seq_len)
             attention_mask = batch['attention_mask'].to(device)  # (batch_size, seq_len)
 
@@ -100,6 +105,11 @@ def main():
             optimizer.step()
             
             total_loss += loss.item()
+
+            if step % log_interval == 0:
+                avg_train_loss = total_loss / step
+                log_msg = f"step {step} - Loss: {avg_train_loss:.4f}"
+                logging.info(log_msg)
             
 
         log_msg = f"Epoch {epoch+1} — Loss: {total_loss / len(data_loader):.4f}"
@@ -116,9 +126,7 @@ def main():
             }, checkpoint_path)
             print(f"Saved checkpoint: {checkpoint_path}")
 
-    
-    
-    
+
     
 if __name__ == "__main__":
     main()
