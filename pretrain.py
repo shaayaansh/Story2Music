@@ -5,7 +5,7 @@ from pathlib import Path
 from miditok import REMI
 from miditok.pytorch_data import DatasetMIDI, DataCollator
 from torch.utils.data import DataLoader
-from utils import generate_causal_mask, load_and_split_pretraining_data
+from utils import generate_causal_mask
 from utils import load_pretrain_data, split_pretrain_data
 from random import shuffle
 from miditok.data_augmentation import augment_dataset
@@ -120,6 +120,5 @@ def main():
     
     
     
-     
 if __name__ == "__main__":
     main()
