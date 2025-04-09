@@ -115,12 +115,12 @@ def split_pretrain_data(midi_path, tokenizer, max_len=1024):
     midi_paths_test = midi_paths[num_files_train+num_files_valid:]
 
     for files_path, subset_name in (
-        (midi_path_train, "train"),
-        (midi_path_valid, "validation"),
-        (midi_path_test, "test")
+        (midi_paths_train, "train"),
+        (midi_paths_valid, "validation"),
+        (midi_paths_test, "test")
     ):
         subset_chunks_dir = Path(f"pretrain_data/dataset_{subset_name}")
-        subset_files_for_training(
+        split_files_for_training(
             files_path=files_path,
             tokenizer=tokenizer,
             save_dir=subset_chunks_dir,
