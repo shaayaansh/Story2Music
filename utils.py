@@ -1,4 +1,5 @@
 from miditok import REMI, TokenizerConfig
+from miditok.utils import split_files_for_training
 from pathlib import Path
 import os
 import muspy
@@ -97,3 +98,34 @@ def load_pretrain_data(download_url, output_zip, extracted_file_name):
     print("removed zip file")
 
     return extracted_file_name
+
+
+def split_pretrain_data(data_path, tokenizer, max_len=1024):
+    """ splits the pretrain data into train/val/test
+    """
+    
+    midi_paths = list(Path(data_path).glob('**/*.mid'))
+    total_num_files = len(midi_paths)
+    num_files_train = total_num_files * 0.8
+    num_files_valid = total_num_files * 0.1
+
+    midi_paths_train = midi_paths[:total_files_train]
+    midi_paths_valid = midi_paths[total_files_train:total_files_train + \
+        total_files_valid]
+    midi_paths_test = midi_paths[total_files_train+total_files_valid:]
+
+    for files_path, subset_name in (
+        (midi_path_train, "train"),
+        (midi_path_valid, "validation"),
+        (midi_path_test, "test")
+    ):
+        subset_chunks_dir = Path(f"pretrain_data/dataset_{subset_name}")
+        subset_files_for_training(
+            files_path=files_path,
+            tokenizer=tokenizer,
+            save_dir=subset_chunks_dir,
+            max_seq_len=max_len,
+            num_overlap_bars=2,
+        )
+
+
