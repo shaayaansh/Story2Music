@@ -47,39 +47,9 @@ def get_eval_metrics(midi_path):
     ]
     
 
-    
 def generate_causal_mask(size):
     return torch.triu(torch.ones(size, size) * float('-inf'), diagonal=1)
 
-
-
-def load_and_split_pretraining_data(tokenizer):
-    # Split the dataset into train/valid/test subsets, with 15% of the data for each of the two latter
-    midi_paths = list(Path("pretrain_data", "midis").resolve().glob("**/*.mid"))
-
-    total_num_files = len(midi_paths)
-    num_files_valid = round(total_num_files * 0.15)
-    num_files_test = round(total_num_files * 0.15)
-    shuffle(midi_paths)
-    midi_paths_valid = midi_paths[:num_files_valid]
-    midi_paths_test = midi_paths[num_files_valid:num_files_valid + num_files_test]
-    midi_paths_train = midi_paths[num_files_valid + num_files_test:]
-
-    # Chunk MIDIs into sequences of length 1024
-    for files_paths, subset_name in (
-        (midi_paths_train, "train"), (midi_paths_valid, "valid"), (midi_paths_test, "test")
-    ):
-
-        # Split the MIDIs into chunks of sizes approximately about 1024 tokens
-        subset_chunks_dir = Path(f"dataset_{subset_name}")
-        split_files_for_training(
-            files_paths=files_paths,
-            tokenizer=tokenizer,
-            save_dir=subset_chunks_dir,
-            max_seq_len=1024,
-            num_overlap_bars=2,
-        )
-        
 
 def load_pretrain_data(download_url, output_zip, extracted_file_name):
     """ downloads pretrain data and unzips it
