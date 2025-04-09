@@ -5,6 +5,8 @@ import muspy
 from random import shuffle
 from miditok.utils import split_files_for_training
 import torch
+import gdown
+import zipfile
 
 
 def convert_to_midi(token_ids, tokenizer, dump_path):
@@ -77,3 +79,21 @@ def load_and_split_pretraining_data(tokenizer):
             num_overlap_bars=2,
         )
         
+
+def load_pretrain_data(download_url, output_zip, extracted_file_name):
+    """ downloads pretrain data and unzips it
+
+    """
+
+    print("downloading pretrain data: ")
+    gdown.download(download_url, output_zip)
+    
+    print("unzipping pretrain data: ")
+    with zipfile.ZipFile(output_zip, 'r') as zip_f:
+        zip_f.extractall(extracted_file_name)
+
+    print("pretrain data unzipped.")
+    os.remove(output_zip)
+    print("removed zip file")
+
+    return extracted_file_name
