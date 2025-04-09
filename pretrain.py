@@ -33,7 +33,7 @@ def main():
     url = f"https://drive.google.com/uc?id={pretrain_file_id}"
     
     load_pretrain_data(url, "midis.zip", "midis")
-    split_pretrain_data("midis", tokenizer, 1024)
+    split_pretrain_data("midis", midi_tokenizer, 1024)
         
     midi_paths = list(Path("dataset_train").resolve().glob("**/*.mid"))
 

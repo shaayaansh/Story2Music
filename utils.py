@@ -109,10 +109,10 @@ def split_pretrain_data(midi_path, tokenizer, max_len=1024):
     num_files_train = total_num_files * 0.8
     num_files_valid = total_num_files * 0.1
 
-    midi_paths_train = midi_paths[:total_files_train]
-    midi_paths_valid = midi_paths[total_files_train:total_files_train + \
-        total_files_valid]
-    midi_paths_test = midi_paths[total_files_train+total_files_valid:]
+    midi_paths_train = midi_paths[:num_files_train]
+    midi_paths_valid = midi_paths[num_files_train:num_files_train + \
+        num_files_valid]
+    midi_paths_test = midi_paths[num_files_train+num_files_valid:]
 
     for files_path, subset_name in (
         (midi_path_train, "train"),
