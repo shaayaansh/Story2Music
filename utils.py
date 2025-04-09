@@ -106,8 +106,8 @@ def split_pretrain_data(midi_path, tokenizer, max_len=1024):
     
     midi_paths = list(Path(midi_path).glob('**/*.mid'))
     total_num_files = len(midi_paths)
-    num_files_train = total_num_files * 0.8
-    num_files_valid = total_num_files * 0.1
+    num_files_train = int(total_num_files * 0.8)
+    num_files_valid = int(total_num_files * 0.1)
 
     midi_paths_train = midi_paths[:num_files_train]
     midi_paths_valid = midi_paths[num_files_train:num_files_train + \
@@ -121,7 +121,7 @@ def split_pretrain_data(midi_path, tokenizer, max_len=1024):
     ):
         subset_chunks_dir = Path(f"pretrain_data/dataset_{subset_name}")
         split_files_for_training(
-            files_path=files_path,
+            files_paths=files_path,
             tokenizer=tokenizer,
             save_dir=subset_chunks_dir,
             max_seq_len=max_len,
