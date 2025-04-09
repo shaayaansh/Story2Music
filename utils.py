@@ -100,11 +100,11 @@ def load_pretrain_data(download_url, output_zip, extracted_file_name):
     return extracted_file_name
 
 
-def split_pretrain_data(data_path, tokenizer, max_len=1024):
+def split_pretrain_data(midi_path, tokenizer, max_len=1024):
     """ splits the pretrain data into train/val/test
     """
     
-    midi_paths = list(Path(data_path).glob('**/*.mid'))
+    midi_paths = list(Path(midi_path).glob('**/*.mid'))
     total_num_files = len(midi_paths)
     num_files_train = total_num_files * 0.8
     num_files_valid = total_num_files * 0.1

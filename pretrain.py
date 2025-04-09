@@ -6,6 +6,7 @@ from miditok import REMI
 from miditok.pytorch_data import DatasetMIDI, DataCollator
 from torch.utils.data import DataLoader
 from utils import generate_causal_mask, load_and_split_pretraining_data
+from utils import load_pretrain_data, split_pretrain_data
 from random import shuffle
 from miditok.data_augmentation import augment_dataset
 from midi_decoder import MidiDecoderOnlyModel
@@ -26,9 +27,13 @@ def main():
     os.makedirs("pretrain_checkpoints", exist_ok=True)
 
     midi_tokenizer = REMI()
+
+    # download and split pretrain data
+    pretrain_file_id = "1BDEPaEWFEB2ADquS1VYp5iLZYVngw799"
+    url = f"https://drive.google.com/uc?id={pretrain_file_id}"
     
-    # load and split training data (only run it once for the first time)
-    #load_and_split_pretraining_data(midi_tokenizer)
+    load_pretrain_data(url, "midis.zip", "midis")
+    split_pretrain_data("midis", tokenizer, 1024)
         
     midi_paths = list(Path("dataset_train").resolve().glob("**/*.mid"))
 
