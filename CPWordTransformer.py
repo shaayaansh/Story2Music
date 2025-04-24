@@ -1,7 +1,9 @@
 import torch.nn.functional as F
+from torch.nn import Transformer
 import torch
 import torch.nn as nn
 import math
+
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -19,7 +21,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         x = x + self.pe[:, :x.size(1), :].detach()
         return x
-
+    
 
 class CPWordTransformer(nn.Module):
   def __init__(self, cp_tokens_size, tokenizer, num_layers= 6, d_model=128):
@@ -46,9 +48,8 @@ class CPWordTransformer(nn.Module):
     pos_encoded = self.pos_encoder(projected).permute(1, 0, 2) # (T, B, d_model)
 
     seq_len = pos_encoded.size(0)
-    tgt_mask = torch.triu(torch.ones(seq_len, seq_len,
-                                     device=x.device,
-                                     dtype=torch.bool))
+    tgt_mask = Transformer.generate_square_subsequent_mask(seq_len)  \
+                  .to(x.device) 
 
     out = self.decoder(pos_encoded,
                        memory=torch.zeros_like(pos_encoded),
@@ -95,7 +96,7 @@ class CPWordTransformer(nn.Module):
                     next_id = int(last_logits.argmax())
                     
                 elif decoding_strategy == "top_p":
-                    next_id = int(self.top_p_sample(logits, p=top_p))
+                    next_id = int(self.top_p_sample(last_logits, p=top_p))
                 
                 generated_feats.append(id2compound[next_id])
 
