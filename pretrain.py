@@ -2,14 +2,15 @@ import torch.optim as optim
 import torch
 import torch.nn as nn
 from pathlib import Path
-from miditok import REMI
+from miditok import CPWord, TokenizerConfig
+from symusic import Score
 from miditok.pytorch_data import DatasetMIDI, DataCollator
 from torch.utils.data import DataLoader
 from utils import generate_causal_mask
-from utils import load_pretrain_data, split_pretrain_data
+from utils import load_pretrain_data, split_pretrain_data, build_CP_vocab
 from random import shuffle
 from miditok.data_augmentation import augment_dataset
-from midi_decoder import MidiDecoderOnlyModel
+from cp_transformer import CPWordTransformer
 from tqdm import tqdm
 import logging
 import os
@@ -26,7 +27,7 @@ def main():
     
     os.makedirs("pretrain_checkpoints", exist_ok=True)
 
-    midi_tokenizer = REMI()
+    tokenizer = CPWord()
 
     # download and split pretrain data only if the folder does not exist
     if not os.path.exists("midis"):
@@ -34,23 +35,27 @@ def main():
         url = f"https://drive.google.com/uc?id={pretrain_file_id}"
         
         load_pretrain_data(url, "midis.zip", "midis")
-        split_pretrain_data("midis", midi_tokenizer, 1024)
+        midis_path = list(Path("midis/midis").resolve().glob("**/*.mid"))
+        if not os.path.exists("compound2id.pkl"):
+            compound2id, id2compound = build_CP_vocab(midis_path, tokenizer)
+        
+        split_pretrain_data("midis", tokenizer, 1024)
         
     midi_paths = list(Path("pretrain_data/dataset_train").resolve().glob("**/*.mid"))
 
     dataset = DatasetMIDI(
         files_paths=midi_paths,
-        tokenizer=midi_tokenizer,
+        tokenizer=tokenizer,
         max_seq_len=1024,
-        bos_token_id=midi_tokenizer.pad_token_id,
-        eos_token_id=midi_tokenizer["BOS_None"],
+        bos_token_id=tokenizer.pad_token_id,
+        eos_token_id=tokenizer["BOS_None"],
     )
     
-    collator = DataCollator(midi_tokenizer.pad_token_id)
+    collator = DataCollator(tokenizer.pad_token_id)
     data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=16)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = MidiDecoderOnlyModel(vocab_size=len(midi_tokenizer.vocab))
+    model = CPWordTransformer(len(compound2id.items()), tokenizer)
     
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs")
@@ -58,7 +63,9 @@ def main():
     
     model = model.to(device)
 
-    criterion = nn.CrossEntropyLoss(ignore_index=midi_tokenizer.pad_token_id)
+    pad_tuple = tuple(tokenizer.pad_token_id for _ in range(len(tokenizer.vocab)))
+    compound_pad_id = compound2id[pad_tuple]
+    criterion = nn.CrossEntropyLoss(ignore_index=compound_pad_id)
     optimizer = optim.AdamW(model.parameters(), lr=1e-4)
     
     # ==== Resume checkpoint ====
@@ -81,38 +88,48 @@ def main():
     step = 0
     log_interval = 500
     for epoch in range(start_epoch, num_epochs):
-        total_loss = 0
+        epoch_loss = 0
         for _, batch in enumerate(tqdm(data_loader)):
             step += 1
 
-            input_ids = batch['input_ids'].to(device)            # (batch_size, seq_len)
-            attention_mask = batch['attention_mask'].to(device)  # (batch_size, seq_len)
+            input_ids = batch['input_ids'].to(device)            #  (B, T, f)
+            attention_mask = batch['attention_mask'].to(device)  # (B, T)
 
-            decoder_input = input_ids[:, :-1]        # (batch_size, seq_len - 1)
-            target = input_ids[:, 1:]                # (batch_size, seq_len - 1)
-            attn_mask = attention_mask[:, :-1]       # (batch_size, seq_len - 1)
+            decoder_input = input_ids[:, :-1]        # (B, T - 1, f)
+            attn_mask = attention_mask[:, :-1]       # (B, T - 1)
 
+            tgt = input_ids[:, 1:]                # (B, T - 1, f)
             tgt_key_padding_mask = (attn_mask == 0)
 
             output = model(
                 decoder_input,
                 tgt_key_padding_mask=tgt_key_padding_mask,
-            )  # (batch_size, seq_len - 1, vocab)
+            )  
+            logits = output.reshape(-1, output.size(-1)) # (B*(T-1), cp_vocab_size)
 
-            loss = criterion(output.reshape(-1, output.size(-1)), target.reshape(-1))
+            B, Tm1, f = tgt.shape
+            flat = tgt.reshape(-1, f).tolist()
+            flat_ids = [ compound2id[tuple(feat)] for feat in flat ]
+            tgt_compound = torch.tensor(flat_ids,
+                            device=tgt.device,
+                            dtype=torch.long
+                   ).view(B, Tm1)
+
+            loss = criterion(logits, tgt_compound.view(-1))
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
-            total_loss += loss.item()
+            epoch_loss += loss.item()
 
             if step % log_interval == 0:
-                avg_train_loss = total_loss / step
+                avg_train_loss = epoch_loss / step
                 log_msg = f"step {step} - Loss: {avg_train_loss:.4f}"
                 logging.info(log_msg)
             
 
-        log_msg = f"Epoch {epoch+1} — Loss: {total_loss / len(data_loader):.4f}"
+        log_msg = f"Epoch {epoch+1} — Loss: {epoch_loss / len(data_loader):.4f}"
         print(log_msg) 
         logging.info(log_msg)
 

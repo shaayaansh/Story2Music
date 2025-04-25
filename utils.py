@@ -8,6 +8,7 @@ from miditok.utils import split_files_for_training
 import torch
 import gdown
 import zipfile
+import pickle
 
 
 def convert_to_midi(token_ids, tokenizer, dump_path):
@@ -98,4 +99,59 @@ def split_pretrain_data(midi_path, tokenizer, max_len=1024):
             num_overlap_bars=2,
         )
 
+
+def build_CP_vocab(midis_path, tokenizer):
+    """
+    builds a dictionary for all compound tokens seen in the data
+    args:
+    midis_path: Path --> path to the main folder holding midi files
+    tokenizer --> the tokenizer used for tokenizing data
+    Return:
+    compound2id: Dictionary --> dictionary of all compound tokens to their IDs
+    id2compound: Dictionary --> inverse dictionary of compound2id
+    """
+
+    compound_set = set()
+
+    for path in midis_path:
+        out = tokenizer.encode(path)
+        seqs = out if isinstance(out, list) else [out]
+        for seq in seqs:
+            for feat_ids in seq.ids:
+                compound_set.add(tuple(feat_ids))
+
+    compound2id = { feat_tuple: idx
+                    for idx, feat_tuple in enumerate(sorted(compound_set)) }
+    compound_vocab_size = len(compound2id)
+
+    print("Found", compound_vocab_size, "unique compound tokens")
+
+    n_streams = len(tokenizer.vocab)
+    # build the special tuples (BOS, EOS, PAD)
+    bos_tuple = tuple(tokenizer.vocab[f]["BOS_None"] for f in range(n_streams))
+    eos_tuple = tuple(tokenizer.vocab[f]["EOS_None"] for f in range(n_streams))
+    pad_id   = tokenizer.pad_token_id
+    pad_tuple= tuple(pad_id for _ in range(n_streams))
+
+    # build the inverse mapping
+    id2compound = {idx: tok for tok, idx in compound2id.items()}
+
+    for special, name in [(bos_tuple, "BOS"), (eos_tuple, "EOS"), (pad_tuple, "PAD")]:
+        if special not in compound2id:
+            new_id = len(compound2id)
+            compound2id[special] = new_id
+
+            id2compound[new_id] = "+".join(
+                # find the token string back from the dict:
+                next(tok for tok, idx in tokenizer.vocab[f].items() if idx == special[f])
+                for f in range(n_streams)
+            )
+
+    with open("compound2id.pkl", "wb") as f:
+        pickle.dump(compound2id, f)
+
+    with open("id2compound.pkl", "wb") as f:
+        pickle.dump(id2compound, f)
+    
+    return compound2id, id2compound
 
