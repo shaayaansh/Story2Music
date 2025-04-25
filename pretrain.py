@@ -14,9 +14,11 @@ from cp_transformer import CPWordTransformer
 from tqdm import tqdm
 import logging
 import os
+import pickle
+import argparse
 
 
-def main():
+def main(args):
     
     logging.basicConfig(
         filename='pretrain_log.log',
@@ -36,10 +38,19 @@ def main():
         
         load_pretrain_data(url, "midis.zip", "midis")
         midis_path = list(Path("midis/midis").resolve().glob("**/*.mid"))
+        
         if not os.path.exists("compound2id.pkl"):
+            print("Building Compound Vocabulary...")
             compound2id, id2compound = build_CP_vocab(midis_path, tokenizer)
         
         split_pretrain_data("midis", tokenizer, 1024)
+
+    else:
+        with open("compound2id.pkl", "rb") as f:
+            compound2id = pickle.load(f)
+        with open("id2compound.pkl", "rb") as f:
+            id2compound = pickle.load(f)
+        
         
     midi_paths = list(Path("pretrain_data/dataset_train").resolve().glob("**/*.mid"))
 
@@ -52,7 +63,7 @@ def main():
     )
     
     collator = DataCollator(tokenizer.pad_token_id)
-    data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=16)
+    data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=2)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = CPWordTransformer(len(compound2id.items()), tokenizer)
@@ -72,16 +83,20 @@ def main():
     checkpoint_path = "pretrain_checkpoints/decoder_epoch_4.pt"  # change if needed
     start_epoch = 0
 
-    if os.path.exists(checkpoint_path):
+    if args.resume and os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path)
         model.module.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         print(f"Loaded checkpoint from epoch {checkpoint['epoch']}")
         logging.info(f"Resumed training from checkpoint: epoch {checkpoint['epoch']}")
+    
+    elif args.resume and not os.path.exists(checkpoint_path):
+        print("Checkpoint not found. Cannot resume training.")
+        exit(1)
         
         
-    num_epochs = 20
+    num_epochs = 5
     save_every = 2
 
     model.train()
@@ -146,4 +161,7 @@ def main():
 
     
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--resume", action="store_true", help="Resume training from last checkpoint")
+    args = parser.parse_args()
+    main(args)
