@@ -67,3 +67,4 @@ transformers==4.50.3
 typing_extensions==4.13.0
 tzdata==2025.2
 urllib3==2.3.0
+kagglehub==0.3.10
