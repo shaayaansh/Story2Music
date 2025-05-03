@@ -37,11 +37,12 @@ def main(args):
         url = f"https://drive.google.com/uc?id={pretrain_file_id}"
         
         load_pretrain_data(url, "midis.zip", "midis")
-        midis_path = list(Path("midis/midis").resolve().glob("**/*.mid"))
+        midi_paths = list(Path("midis/midis").resolve().glob("**/*.mid")) + \
+                     list(Path("EMOPIA_1.0/midis").resolve().glob("**/*.mid"))
         
         if not os.path.exists("compound2id.pkl"):
             print("Building Compound Vocabulary...")
-            compound2id, id2compound = build_CP_vocab(midis_path, tokenizer)
+            compound2id, id2compound = build_CP_vocab(midi_paths, tokenizer)
         
         split_pretrain_data("midis", tokenizer, 1024)
 
@@ -96,8 +97,8 @@ def main(args):
         exit(1)
         
         
-    num_epochs = 5
-    save_every = 2
+    num_epochs = 21
+    save_every = 4
 
     model.train()
     step = 0
@@ -140,7 +141,7 @@ def main(args):
 
             if step % log_interval == 0:
                 avg_train_loss = epoch_loss / step
-                log_msg = f"step {step} - Loss: {avg_train_loss:.4f}"
+                log_msg = f"step {step} - Batch Loss: {loss.item():.4f}"
                 logging.info(log_msg)
             
 
@@ -149,15 +150,25 @@ def main(args):
         logging.info(log_msg)
 
         if epoch % save_every == 0 and epoch != 0:
-            checkpoint_path = f"pretrain_checkpoints/decoder_epoch_{epoch}.pt"
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.module.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss.item(),
-            }, checkpoint_path)
-            print(f"Saved checkpoint: {checkpoint_path}")
-
+            if torch.cuda.device_count() > 1:
+                checkpoint_path = f"pretrain_checkpoints/decoder_epoch_{epoch}.pt"
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.module.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss.item(),
+                }, checkpoint_path)
+                print(f"Saved checkpoint: {checkpoint_path}")
+            
+            else:
+                checkpoint_path = f"pretrain_checkpoints/decoder_epoch_{epoch}.pt"
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(), 
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss.item(),
+                }, checkpoint_path)
+                print(f"Saved checkpoint: {checkpoint_path}")
 
     
 if __name__ == "__main__":
