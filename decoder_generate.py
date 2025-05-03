@@ -22,7 +22,7 @@ with open("id2compound.pkl", "rb") as f:
 model = CPWordTransformer(len(compound2id.items()), tokenizer)
 model.to(device)
 
-checkpoint_path = "pretrain_checkpoints/decoder_epoch_4.pt"
+checkpoint_path = "pretrain_checkpoints/decoder_epoch_20.pt"
 checkpoint = torch.load(checkpoint_path, map_location=device)
 
 new_state_dict = OrderedDict()
