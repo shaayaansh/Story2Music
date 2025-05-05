@@ -38,9 +38,9 @@ class CPWordTransformer(nn.Module):
     self.pos_encoder = PositionalEncoding(d_model)
     self.output_proj = nn.Linear(d_model, cp_tokens_size)
 
-  def forward(self, x, tgt_key_padding_mask=None):
+  def forward(self, x, tgt_key_padding_mask=None, memory=None):
     """
-    input to the function is (B, T, 7)
+    input to the function is (B, T, F)
     """
     embeddings = [embd(x[:,:,i]) for i, embd in enumerate(self.embeddings)]
     embeddings_cat = torch.cat(embeddings, dim=-1) # super token (B, T, 7*64)
@@ -50,9 +50,12 @@ class CPWordTransformer(nn.Module):
     seq_len = pos_encoded.size(0)
     tgt_mask = Transformer.generate_square_subsequent_mask(seq_len)  \
                   .to(x.device) 
+    
+    if memory is None:
+        memory = torch.zeros_like(pos_encoded)
 
     out = self.decoder(pos_encoded,
-                       memory=torch.zeros_like(pos_encoded),
+                       memory=memory,
                        tgt_mask=tgt_mask,
                        tgt_key_padding_mask=tgt_key_padding_mask
                        )
@@ -72,7 +75,8 @@ class CPWordTransformer(nn.Module):
                  id2compound,
                  decoding_strategy="top_p",
                  top_p=0.9,
-                 device=None
+                 device=None,
+                 memory=None
                 ):
 
         device = device
@@ -89,7 +93,7 @@ class CPWordTransformer(nn.Module):
                     dtype=torch.long
                 ) # (1, T, F)
 
-                logits = self.forward(x)
+                logits = self.forward(x, memory=memory)
                 last_logits = logits[0, -1]
 
                 if decoding_strategy == "greedy":
