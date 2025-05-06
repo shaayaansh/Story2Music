@@ -3,15 +3,18 @@ import numpy as np
 import torch
 import torch.nn as nn
 import argparse
-from miditok import REMI, TokenizerConfig
+from miditok import CPWord, TokenizerConfig
 from tqdm import tqdm
 from pathlib import Path
 from model import Story2MusicTransformer
 from dataset import StoryMidiDataset
 from transformers import BertTokenizer
+from cp_transformer import CPWordTransformer
 from torch.utils.data import DataLoader, Dataset
 import logging
 import json
+import pickle
+
 
 def ensure_saved_models_dir():
     """
@@ -26,8 +29,6 @@ def main(args):
     # Ensure saved_models directory exists
     ensure_saved_models_dir()
     
-    # hyper parameters TODO: READ FROM ARGS
-    vocab_size_midi = 281 # len(tokenizer.vocab)  
     batch_size = args.batch_size
     model_name = args.model_name
     num_epochs = args.num_epochs
@@ -59,29 +60,30 @@ def main(args):
 
 
     # initialize the MIDI tokenizer
-    tokenizer_params = {
-          "pitch_range": (21, 108),  # MIDI range for piano keys
-          "beat_res": {(0, 4): 8, (4, 12): 4},
-          "num_velocities": 32,
-          "special_tokens": ["PAD", "BOS", "EOS", "MASK"]
-    }
+    midi_tokenizer = CPWord()
+    with open("compound2id.pkl", "rb") as f:
+        compound2id = pickle.load(f)
+    cp_tokens_size = len(compound2id.items())
+    pretrained_decoder = CPWordTransformer(cp_tokens_size, midi_tokenizer)
 
-    config = TokenizerConfig(**tokenizer_params)
-    midi_tokenizer = REMI(config)
+    checkpoint_path = "pretrain_checkpoints/decoder_epoch_20.pt"
+    checkpoint = torch.load(checkpoint_path, map_location=device)
 
-    pad_token_id = midi_tokenizer["PAD_None"]
-    
+    pretrained_decoder.load_state_dict(checkpoint["model_state_dict"])
+    print("Pretrained decoder loaded! \n")
+
     # convert dataframe to dataset object
     dataset = StoryMidiDataset(matched_df, midi_tokenizer)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True) 
-    
-    
+    print("Dataset item 12: \n")
+    print(dataset[12])
     # instantiate the model & optimizer
-    model = Story2MusicTransformer(model_name, vocab_size_midi)
+    model = Story2MusicTransformer(model_name, pretrained_decoder)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss(ignore_index=pad_token_id)
+    criterion = nn.CrossEntropyLoss(ignore_index=midi_tokenizer["PAD_None"])
     
     model.to(device)
+    print("Story2Music model initiated and moved to device!\n")
     
     logger.info("Training hyperparamteres: \n")
     logger.info(f"Num_epochs: {num_epochs}")
@@ -90,42 +92,44 @@ def main(args):
     logger.info(f"Model name: {model_name}")
     logger.info("Training started")
     
+
+    pad_tuple = tuple(midi_tokenizer.pad_token_id for _ in range(len(midi_tokenizer.vocab)))
+    compound_pad_id = compound2id[pad_tuple]
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
+
         for idx, batch in enumerate(tqdm(dataloader)):
             input_ids, attention_mask, midi_output = batch
-            
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
-            midi_output = midi_output.to(device)
+            midi_output = midi_output.to(device) 
             
-            text_input = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask
-            }
-            
-            # Remove last token from target for input to decoder
-            tgt_input = midi_output[:, :-1].to(device)
+            decoder_input = midi_output[:, :-1, :]   # (B, T-1, F)
+            tgt_target = midi_output[:, 1:, :]  
 
-            # Target for loss should exclude first token (teacher forcing)
-            tgt_target = midi_output[:, 1:].to(device)
-            
-            tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt_input.size(1)).to(device)
-            
+            B, Tm1, F = tgt_target.shape
+            flat = tgt_target.reshape(-1, F).tolist()
+            flat_ids = [compound2id[tuple(tok)] for tok in flat]
+            tgt_ids = torch.tensor(flat_ids, device=device).view(B, Tm1)
+
+            tgt_key_padding_mask = (tgt_ids == compound_pad_id) 
+
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(Tm1).to(device)
+
             optimizer.zero_grad()
-            output = model(input_ids, attention_mask, tgt_input, tgt_mask)
-            #output = model.decoder_forward_only(tgt_input, tgt_mask) # pretraining step
-            #print(f" IN TRAIN FILE, output shape: {output.shape}")
-            #print(f" IN TRAIN FILE, tgt_target shape: {tgt_target.shape}")
-            #ßprint(f" IN TRAIN FILE, tgt_target shape after reshape: {tgt_target.reshape(-1).shape}")
-            loss = criterion(output.reshape(-1, vocab_size_midi), tgt_target.reshape(-1))
-            loss.backward()
-            
-            optimizer.step()
-            total_loss += loss.item()
+            output = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                tgt=decoder_input,
+                tgt_key_padding_mask=tgt_key_padding_mask
+            )
 
-    
+            loss = criterion(output.view(-1, output.size(-1)), tgt_ids.view(-1))
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
     
         avg_loss = total_loss / len(dataloader)
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.4f}")
@@ -139,14 +143,11 @@ def main(args):
     
     
 
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="arguments to train the story2music model")
     parser.add_argument("--model_name", type=str, required=True, help="name of the pretrained model")
     parser.add_argument("--batch_size", type=int, default=16, help="batch size for training the model")
     parser.add_argument("--lr", type=float, default=1e-5, help="learning rate for training the model")
-    parser.add_argument("--midi_vocab_size", type=int, default=30000, help="midi vocab size for midi tokenizer")
     parser.add_argument("--num_epochs", type=int, default=20, help="number of epochs to train the model")
     
     args = parser.parse_args()

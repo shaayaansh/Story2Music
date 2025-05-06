@@ -29,12 +29,15 @@ class Story2MusicTransformer(nn.Module):
         super().__init__()
         self.encoder = AutoModel.from_pretrained(encoder_name) # download a pretrained text encoder like BERT
         self.positional_encoder = PositionalEncoding(768)
-        self.decoder = decoder        
+        self.decoder = decoder  
+        self.memory_proj = nn.Linear(768, self.decoder.linear_proj.out_features)      
         
     def forward(self, input_ids, attention_mask, tgt, tgt_key_padding_mask=None):
         # freeze the encoder
         with torch.no_grad():
             memory = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+
+        memory = self.memory_proj(memory)    
         memory = memory.permute(1, 0, 2)  # (T_enc, B, H)
 
         embeddings = [emb(tgt[:, :, i]) for i, emb in enumerate(self.decoder.embeddings)]
@@ -54,7 +57,7 @@ class Story2MusicTransformer(nn.Module):
         )
 
         out = out.permute(1, 0, 2)  # (B, T, d_model)
-        logits = self.decoder.output_proj(out)  # use decoder's own output layer
+        logits = self.decoder.output_proj(out)  
 
         return logits
     
